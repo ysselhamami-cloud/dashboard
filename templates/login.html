@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OurHelpdesk · Login</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="login-page">
+  <main class="login-shell">
+    <section class="login-brand">
+      <h1>OurHelpdesk</h1>
+      <p>Support portal for Clients, IT/Dev, and Admin teams.</p>
+    </section>
+    <section class="login-form-wrap">
+      <h2>Sign in</h2>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <div class="flash-list">
+        {% for category, message in messages %}
+        <p class="flash {{ category }}">{{ message }}</p>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% endwith %}
+      <form method="post" class="login-form">
+        <label>Username
+          <input type="text" name="username" required>
+        </label>
+        <label>Password
+          <input type="password" name="password" required>
+        </label>
+        <button type="submit">Login</button>
+      </form>
+      <div class="demo-box">
+        <h3>Demo Accounts</h3>
+        <ul>
+          <li><strong>CLIENT:</strong> client / client</li>
+          <li><strong>ITDEV:</strong> itdev / itdev</li>
+          <li><strong>ADMIN:</strong> admin / admin</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

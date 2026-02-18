@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OurHelpdesk · Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">OurHelpdesk</div>
+      {% for section, links in sidebar_sections %}
+      <div class="side-section">
+        <p class="side-label">{{ section }}</p>
+        <ul>
+          {% for item in links %}
+          <li class="{{ 'active' if loop.first else '' }}">{{ item }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+      <div class="sidebar-footer">Logged in as:<br><strong>{{ user.username }}</strong></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <input class="search" placeholder="Search tickets">
+        <nav>
+          <span>{{ user.role | upper }}</span>
+          <a class="logout" href="{{ url_for('logout') }}">Logout</a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <h1>{{ user.display_name }}</h1>
+        <p>{{ user.role | upper }} Workspace · OurHelpdesk</p>
+      </section>
+
+      <section class="panel">
+        <div class="tabs">
+          {% for tab in tabs %}
+          <button class="tab {{ 'active' if loop.first else '' }}">{{ tab }}</button>
+          {% endfor %}
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-row">
+          {% for category, message in messages %}
+          <span class="flash {{ category }}">{{ message }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <div class="grid {{ user.role }}">
+          {% if user.role == 'admin' %}
+          <article class="card">
+            <h3>Dashboard</h3>
+            <h4>Platform Overview</h4>
+            <ul class="stats">
+              <li><span>Open Tickets</span><strong>{{ summary.open }}</strong></li>
+              <li><span>In Progress</span><strong>{{ summary.progress }}</strong></li>
+              <li><span>Resolved</span><strong>{{ summary.resolved }}</strong></li>
+              <li><span>Closed</span><strong>{{ summary.closed }}</strong></li>
+              <li><span>Average response time</span><strong>{{ summary.avg_response }}</strong></li>
+              <li><span>Average resolution time</span><strong>{{ summary.avg_resolution }}</strong></li>
+              <li><span>Overdue tickets</span><strong>{{ summary.overdue }}</strong></li>
+            </ul>
+          </article>
+          {% endif %}
+
+          <article class="card">
+            <h3>Tickets</h3>
+            <form method="post" action="{{ url_for('create_ticket') }}" class="form-stack">
+              <input name="title" placeholder="Ticket title" required>
+              <textarea name="description" placeholder="Describe your issue" required></textarea>
+              <select name="category">
+                <option>Hardware</option><option>Software</option><option>Network</option>
+              </select>
+              <select name="priority">
+                <option>Low</option><option>Medium</option><option>High</option>
+              </select>
+              <button type="submit" class="btn">Create Ticket</button>
+            </form>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  {% if user.role != 'client' %}<th>Creator</th>{% endif %}
+                  {% if user.role == 'admin' %}<th>Assigned IT</th>{% endif %}
+                  <th>Title</th><th>Status</th><th>Priority</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ticket in tickets %}
+                <tr class="{{ 'selected' if selected_ticket and selected_ticket.id == ticket.id else '' }}" onclick="window.location='{{ url_for('dashboard', ticket=ticket.id) }}'">
+                  <td>{{ ticket.id }}</td>
+                  {% if user.role != 'client' %}<td>{{ ticket.creator }}</td>{% endif %}
+                  {% if user.role == 'admin' %}<td>{{ ticket.assigned_to or 'Unassigned' }}</td>{% endif %}
+                  <td>{{ ticket.title }}</td><td>{{ ticket.status }}</td><td>{{ ticket.priority }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+
+            {% if selected_ticket and user.role in ['itdev','admin'] %}
+            <div class="detail">
+              <h4>#{{ selected_ticket.id }}: {{ selected_ticket.title }}</h4>
+              <p>{{ selected_ticket.description }}</p>
+              <p><strong>Category:</strong> {{ selected_ticket.category }}</p>
+              <div class="customer-meta">
+                <p><strong>Customer:</strong> {{ selected_ticket.creator }}</p>
+                <p><strong>Name:</strong> {{ selected_customer.full_name }}</p>
+                <p><strong>Number:</strong> {{ selected_customer.phone }}</p>
+                <p><strong>Society:</strong> {{ selected_customer.company }}</p>
+              </div>
+              <form method="post" action="{{ url_for('update_ticket', ticket_id=selected_ticket.id) }}" class="form-stack">
+                <select name="status"><option>Open</option><option>In Progress</option><option>Resolved</option></select>
+                <select name="priority"><option>Low</option><option>Medium</option><option>High</option></select>
+                {% if user.role == 'admin' %}
+                <select name="assigned_to"><option value="">Unassigned</option><option value="itdev">itdev</option></select>
+                {% endif %}
+                <textarea name="note" placeholder="Add note">{{ selected_ticket.note }}</textarea>
+                <button class="btn" type="submit">Save Update</button>
+              </form>
+            </div>
+            {% endif %}
+          </article>
+
+          {% if user.role in ['itdev', 'admin'] %}
+          <article class="card">
+            <h3>Interventions</h3>
+            <ul class="interventions">
+              {% for row in interventions %}
+              <li>• {{ row.when }} — {{ row.summary }}<br><small>{{ row.author }} · {{ row.status }} · {{ row.minutes }} min</small></li>
+              {% endfor %}
+            </ul>
+            <form method="post" action="{{ url_for('add_intervention') }}" class="form-stack">
+              <input type="hidden" name="ticket_id" value="{{ selected_ticket.id if selected_ticket else '' }}">
+              <textarea name="summary" placeholder="Work performed" required></textarea>
+              <select name="status"><option>In Progress</option><option>Intervention Completed</option></select>
+              <input type="number" min="0" name="minutes" placeholder="Time spent (minutes)">
+              <button class="btn" type="submit">Start / Add Intervention</button>
+            </form>
+          </article>
+          {% endif %}
+
+          {% if user.role == 'itdev' %}
+          <article class="card">
+            <h3>Customers</h3>
+            <table>
+              <thead><tr><th>Name</th><th>Phone Number</th><th>Post</th><th>Society</th></tr></thead>
+              <tbody>
+                {% for c in customers %}
+                <tr><td>{{ c.name }}</td><td>{{ c.phone }}</td><td>{{ c.position }}</td><td>{{ c.company }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </article>
+
+          <article class="card">
+            <h3>My Avatar</h3>
+            <div class="avatar-wrap">
+              <img src="{{ user.avatar }}" alt="IT avatar" class="avatar-img">
+            </div>
+            <form method="post" action="{{ url_for('profile_avatar_update') }}" class="form-stack">
+              <input name="avatar" placeholder="Paste avatar image URL" value="{{ user.avatar }}" required>
+              <button class="btn" type="submit">Change Avatar</button>
+            </form>
+          </article>
+          {% endif %}
+
+          {% if user.role == 'admin' %}
+          <article class="card">
+            <h3>Profile / Settings</h3>
+            <form method="post" action="{{ url_for('profile_update') }}" class="form-stack">
+              <label>Name<input name="full_name" value="{{ user.full_name }}"></label>
+              <label>Email<input name="email" value="{{ user.email }}"></label>
+              <label>New Password<input type="password" name="password" placeholder="Leave blank to keep current"></label>
+              <button class="btn" type="submit">Save Profile</button>
+            </form>
+            <h4>Activity Logs</h4>
+            <ul class="activity">{% for log in activity_logs %}<li>{{ log }}</li>{% endfor %}</ul>
+            <h4>Chart Summary</h4>
+            <ul class="activity"><li>{{ today }}: {{ tickets|length }} ticket(s)</li></ul>
+          </article>
+          {% endif %}
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
